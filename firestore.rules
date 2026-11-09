@@ -20,6 +20,11 @@ service cloud.firestore {
       allow write: if isOwner();
     }
 
+    // Notes-Idées : strictement privées (lecture et écriture réservées au propriétaire).
+    match /notes/{noteId} {
+      allow read, write: if isOwner();
+    }
+
     // Tout le reste est fermé.
     match /{document=**} {
       allow read, write: if false;

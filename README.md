@@ -7,6 +7,17 @@ Site statique (GitHub Pages) + Firebase (connexion et base de données).
 
 La sécurité est appliquée **côté serveur** par `firestore.rules` : même en bidouillant le code du site, personne d'autre ne peut écrire ni lire tes livres privés.
 
+## Nouveautés (v2)
+- **Style** rose poudré & crème, illustrations au trait (temple grec, roses, épées croisées).
+- **Couvertures** : photo réduite et compressée dans le navigateur (≈ 50-150 Ko), stockée dans le livre (pas besoin de Firebase Storage, payant).
+- **Date de sortie** avec compte à rebours (J-12…), puis « Sorti le … ».
+- **Genres et étiquettes** + recherche et filtres.
+- **Titres de chapitres** : les visiteurs cochent les chapitres et livres lus. Ces coches restent **sur leur appareil** (localStorage), rien n'est écrit dans la base.
+- **Notes-Idées** : bloc-notes privé (collection `notes`, lecture/écriture réservées au propriétaire).
+- **Icône d'app** pour l'écran d'accueil iPhone/Android (`icons/`, `manifest.webmanifest`).
+
+⚠️ Après mise à jour, republier `firestore.rules` (nouvelle règle `notes`).
+
 ## Mise en ligne (≈ 20 minutes)
 
 ### 1. Créer le projet Firebase

@@ -4,8 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex">
-  <meta name="theme-color" content="#f6efe4">
+  <meta name="theme-color" content="#fbeff0">
+  <meta name="color-scheme" content="light">
   <title>Mes livres</title>
+  <!-- Icône et nom quand le site est ajouté à l'écran d'accueil (iPhone, Android) -->
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="Mes livres">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Nunito:wght@400;600;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,12 +29,13 @@
       root.innerHTML = '<main class="wrap narrow"><section class="panel"><h1>Configuration requise</h1><p>Renseigne <code>js/config.js</code> en suivant le README (étapes 1 à 3).</p></section></main>';
     } else {
       try {
-        const [{ start }, { createFirebaseBackend }] = await Promise.all([
+        const [{ start }, { createFirebaseBackend }, { compressCover }] = await Promise.all([
           import('./js/app.js'),
           import('./js/backend-firebase.js'),
+          import('./js/image.js'),
         ]);
         const shareUrl = location.origin + location.pathname;
-        start({ backend: createFirebaseBackend(firebaseConfig), root, ownerUid: OWNER_UID, shareUrl });
+        start({ backend: createFirebaseBackend(firebaseConfig), root, ownerUid: OWNER_UID, shareUrl, compressCover: (f) => compressCover(f, window) });
       } catch (e) {
         root.innerHTML = '<main class="wrap narrow"><p class="state error">Impossible de démarrer l’application.</p></main>';
       }
