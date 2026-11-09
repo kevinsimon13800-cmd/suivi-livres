@@ -40,6 +40,23 @@ export function createFirebaseBackend(config) {
     async deleteBook(id) {
       await deleteDoc(doc(db, 'books', id));
     },
+    // Notes-Idées : privées, lisibles et modifiables uniquement par le propriétaire (voir firestore.rules).
+    async listNotes() {
+      const snap = await getDocs(collection(db, 'notes'));
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    },
+    async saveNote(note) {
+      const { id, ...data } = note;
+      if (id) {
+        await setDoc(doc(db, 'notes', id), { ...data, updatedAt: now() }, { merge: true });
+        return id;
+      }
+      const ref = await addDoc(collection(db, 'notes'), { ...data, createdAt: now(), updatedAt: now() });
+      return ref.id;
+    },
+    async deleteNote(id) {
+      await deleteDoc(doc(db, 'notes', id));
+    },
     async getProfile() {
       const snap = await getDoc(doc(db, 'profile', 'main'));
       return snap.exists() ? snap.data() : null;
