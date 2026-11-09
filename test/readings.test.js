@@ -38,7 +38,7 @@ function fakeFetch(routes, calls = []) {
 test('validateReading : cas valide et normalisation', () => {
   const r = validateReading({ title: ' Circé ', author: ' M. Miller ', status: 'en-cours', rating: '4', chapter: '3', chaptersTotal: '27', startedAt: '2026-11-01', review: ' top ', url: 'https://www.wattpad.com/story/1', cover: COVER, source: 'wattpad', storyCompleted: true });
   assert.equal(r.ok, true);
-  assert.deepEqual(r.value, { title: 'Circé', author: 'M. Miller', status: 'en-cours', rating: 4, chapter: 3, chaptersTotal: 27, startedAt: '2026-11-01', finishedAt: '', review: 'top', url: 'https://www.wattpad.com/story/1', cover: COVER, source: 'wattpad', storyCompleted: true });
+  assert.deepEqual(r.value, { title: 'Circé', author: 'M. Miller', status: 'en-cours', rating: 4, chapter: 3, chaptersTotal: 27, startedAt: '2026-11-01', finishedAt: '', review: 'top', url: 'https://www.wattpad.com/story/1', cover: COVER, source: 'wattpad', storyCompleted: true, favorite: false });
 });
 
 test('validateReading : erreurs (titre, état, note, chapitres, dates, lien, couverture)', () => {
@@ -432,4 +432,63 @@ test('règles simulées : lecture publique, écriture refusée aux visiteurs et 
   await be.login(OTHER.email, OTHER.password);
   await assert.rejects(be.saveReading({ id: 'r1', status: 'terminee' }), /permission-denied/);
   assert.equal(be._raw.readings.get('r1').status, 'en-cours');
+});
+
+
+// ---------- Favoris ----------
+
+test('favoris : validateReading accepte la case, ignore les valeurs bizarres', () => {
+  assert.equal(validateReading({ title: 'T', status: 'a-lire', favorite: true }).value.favorite, true);
+  assert.equal(validateReading({ title: 'T', status: 'a-lire', favorite: 'on' }).value.favorite, true);
+  assert.equal(validateReading({ title: 'T', status: 'a-lire', favorite: 'oui' }).value.favorite, false);
+  assert.equal(validateReading({ title: 'T', status: 'a-lire' }).value.favorite, false);
+});
+
+test('favoris : le propriétaire met / retire un cœur, filtre « ♥ Favoris », visible par les visiteurs', async () => {
+  const ctx = await mount();
+  await ctx.login();
+  assert.equal(ctx.$('[data-filter="favoris"]'), null, 'pas de filtre tant qu’il n’y a aucun favori');
+  const heart = () => ctx.$('[data-reading="r1"] [data-action="toggle-favorite"]');
+  assert.equal(heart().getAttribute('aria-pressed'), 'false');
+  await ctx.click(heart());
+  assert.equal(ctx.backend._raw.readings.get('r1').favorite, true);
+  assert.equal(heart().getAttribute('aria-pressed'), 'true');
+  assert.ok(ctx.$('[data-reading="r1"]').classList.contains('is-fav'));
+  assert.match(ctx.$('.toast').textContent, /ajouté aux favoris/);
+  assert.match(ctx.$('[data-filter="favoris"]').textContent, /♥ Favoris 1/);
+  await ctx.click(ctx.$('[data-filter="favoris"]'));
+  assert.deepEqual(ctx.cards(), ['Circé']);
+  // changer d'état garde le cœur
+  await ctx.click(ctx.$('[data-reading="r1"] [data-move="terminee"]'));
+  assert.equal(ctx.backend._raw.readings.get('r1').favorite, true);
+  // le visiteur voit le cœur, sans bouton
+  const vis = await mount({ seed: { ...SEED(), readings: [...ctx.backend._raw.readings.values()] } });
+  await vis.click(vis.$('[data-filter="favoris"]'));
+  assert.deepEqual(vis.cards(), ['Circé']);
+  assert.ok(vis.$('[data-reading="r1"] .fav-badge'));
+  assert.equal(vis.$('[data-action="toggle-favorite"]'), null);
+  vis.close();
+  // retirer
+  await ctx.click(heart());
+  assert.equal(ctx.backend._raw.readings.get('r1').favorite, false);
+  assert.equal(ctx.$('[data-filter="favoris"]'), null);
+  assert.ok(ctx.$('.reading'), 'retombe sur « Toutes » quand le dernier favori est retiré');
+  ctx.close();
+});
+
+test('favoris : case « Mettre dans mes favoris » dans le formulaire', async () => {
+  const ctx = await mount();
+  await ctx.login();
+  await ctx.click(ctx.$('[data-reading="r1"] [data-action="edit-reading"]'));
+  const f = ctx.$('[data-role="reading-form"]');
+  assert.equal(f.elements.favorite.checked, false);
+  f.elements.favorite.checked = true;
+  await ctx.submit(f);
+  assert.equal(ctx.backend._raw.readings.get('r1').favorite, true);
+  ctx.close();
+});
+
+test('règles simulées : un visiteur ne peut pas mettre un favori', async () => {
+  const be = createMockBackend(SEED());
+  await assert.rejects(be.saveReading({ id: 'r1', favorite: true }), /permission-denied/);
 });

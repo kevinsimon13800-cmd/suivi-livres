@@ -15,6 +15,8 @@ export function createMockBackend(seed = { books: [], profile: null, notes: [] }
   let nseq = 0;
   const readings = new Map((seed.readings || []).map((r) => [r.id, { ...r }]));
   let rseq = 0;
+  const stats = new Map(Object.entries(seed.stats || {}).map(([k, v]) => [k, { ...v }]));
+  const STAT_KEY_RE = /^(all|d-\d{4}-\d{2}-\d{2}|w-\d{4}-W\d{2}|m-\d{4}-\d{2}|q-\d{4}-Q[1-4]|s-\d{4}-S[12]|y-\d{4})$/;
   const accounts = [OWNER, OTHER];
   const isOwner = () => user && user.uid === OWNER.uid;
   const denied = () => Object.assign(new Error('permission-denied'), { code: 'permission-denied' });
@@ -100,6 +102,26 @@ export function createMockBackend(seed = { books: [], profile: null, notes: [] }
       if (!isOwner()) throw denied();
       readings.delete(id);
     },
+    // stats : n'importe qui ajoute +1 (clé valide, champs visits/visitors seulement) ; lecture propriétaire
+    async recordVisit(updates) {
+      for (const u of updates) {
+        if (!STAT_KEY_RE.test(u.key)) throw denied();
+        if (![0, 1].includes(u.visits ?? 0) || ![0, 1].includes(u.visitors ?? 0)) throw denied();
+        if (Object.keys(u).some((k) => !['key', 'visits', 'visitors'].includes(k))) throw denied();
+      }
+      for (const u of updates) {
+        const cur = stats.get(u.key) || {};
+        const next = { ...cur };
+        if (u.visits) next.visits = (cur.visits || 0) + 1;
+        if (u.visitors) next.visitors = (cur.visitors || 0) + 1;
+        stats.set(u.key, next);
+      }
+      this.calls.recordVisit = (this.calls.recordVisit || 0) + 1;
+    },
+    async listStats() {
+      if (!isOwner()) throw denied();
+      return Object.fromEntries([...stats.entries()].map(([k, v]) => [k, { ...v }]));
+    },
     async getProfile() {
       return profile ? { ...profile } : null;
     },
@@ -107,6 +129,6 @@ export function createMockBackend(seed = { books: [], profile: null, notes: [] }
       if (!isOwner()) throw denied();
       profile = { ...(profile || {}), ...p };
     },
-    _raw: { books, notes, readings },
+    _raw: { books, notes, readings, stats },
   };
 }
