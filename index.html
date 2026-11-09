@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#f6efe4">
+  <title>Mes livres</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app"><p class="state">Chargement…</p></div>
+  <script type="module">
+    import { firebaseConfig, OWNER_UID } from './js/config.js';
+    const root = document.getElementById('app');
+    if (firebaseConfig.apiKey === 'REMPLACER' || OWNER_UID === 'REMPLACER') {
+      root.innerHTML = '<main class="wrap narrow"><section class="panel"><h1>Configuration requise</h1><p>Renseigne <code>js/config.js</code> en suivant le README (étapes 1 à 3).</p></section></main>';
+    } else {
+      try {
+        const [{ start }, { createFirebaseBackend }] = await Promise.all([
+          import('./js/app.js'),
+          import('./js/backend-firebase.js'),
+        ]);
+        const shareUrl = location.origin + location.pathname;
+        start({ backend: createFirebaseBackend(firebaseConfig), root, ownerUid: OWNER_UID, shareUrl });
+      } catch (e) {
+        root.innerHTML = '<main class="wrap narrow"><p class="state error">Impossible de démarrer l’application.</p></main>';
+      }
+    }
+  </script>
+</body>
+</html>
