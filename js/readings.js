@@ -1,5 +1,5 @@
 // « Mes lectures » : logique pure (validation, changements d'état, couverture distante).
-import { isValidDate, isValidCover, todayISO } from './logic.js?v=4';
+import { isValidDate, isValidCover, todayISO } from './logic.js?v=5';
 
 export const READING_STATES = [
   { id: 'en-cours', label: 'En cours', icon: '📖' },
@@ -68,13 +68,14 @@ export function validateReading(input) {
 
   const source = input.source === 'wattpad' ? 'wattpad' : 'manuel';
   const storyCompleted = input.storyCompleted === true;
+  const favorite = input.favorite === true || input.favorite === 'on';
 
   const ok = Object.keys(errors).length === 0;
   return {
     ok,
     errors,
     value: ok
-      ? { title, author, status, rating, chapter, chaptersTotal, startedAt, finishedAt, review, url, cover, source, storyCompleted }
+      ? { title, author, status, rating, chapter, chaptersTotal, startedAt, finishedAt, review, url, cover, source, storyCompleted, favorite }
       : null,
   };
 }
@@ -128,3 +129,5 @@ export function sortReadings(list) {
   const key = (r) => (r.status === 'terminee' ? (r.finishedAt || '') + (r.updatedAt || '') : r.updatedAt || '');
   return [...list].sort((a, b) => String(key(b)).localeCompare(String(key(a))));
 }
+
+export const countFavorites = (readings) => readings.filter((r) => r.favorite === true).length;

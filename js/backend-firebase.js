@@ -2,7 +2,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
-  getFirestore, collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc,
+  getFirestore, collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc, writeBatch, increment,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 export function createFirebaseBackend(config) {
@@ -73,6 +73,21 @@ export function createFirebaseBackend(config) {
     },
     async deleteReading(id) {
       await deleteDoc(doc(db, 'readings', id));
+    },
+    // Statistiques : chaque visite ajoute +1 (jamais plus, voir firestore.rules) ; lecture réservée au propriétaire.
+    async recordVisit(updates) {
+      const batch = writeBatch(db);
+      for (const u of updates) {
+        const data = {};
+        if (u.visits) data.visits = increment(1);
+        if (u.visitors) data.visitors = increment(1);
+        if (Object.keys(data).length) batch.set(doc(db, 'stats', u.key), data, { merge: true });
+      }
+      await batch.commit();
+    },
+    async listStats() {
+      const snap = await getDocs(collection(db, 'stats'));
+      return Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
     },
     async getProfile() {
       const snap = await getDoc(doc(db, 'profile', 'main'));

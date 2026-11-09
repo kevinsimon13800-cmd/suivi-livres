@@ -3,16 +3,19 @@
 import {
   STATUSES, progress, validateBook, validateNote, formatNumber, statusLabel,
   countdown, todayISO, filterBooks, collectFacets, isValidCover,
-} from './logic.js?v=4';
-import { createReadingStore } from './reading.js?v=4';
-import { HERO_ART, SWORDS_DIVIDER, COVER_PLACEHOLDER, SMALL_ROSE } from './art.js?v=4';
-import { createReadingsUI } from './readings-ui.js?v=4';
-import { SOCIALS, normalizeSocial, safeSocialUrl, socialIconSvg, SOCIAL_WREATH } from './socials.js?v=4';
+} from './logic.js?v=5';
+import { createReadingStore } from './reading.js?v=5';
+import { HERO_ART, SWORDS_DIVIDER, COVER_PLACEHOLDER, SMALL_ROSE } from './art.js?v=5';
+import { createReadingsUI } from './readings-ui.js?v=5';
+import { SOCIALS, normalizeSocial, safeSocialUrl, socialIconSvg, SOCIAL_WREATH } from './socials.js?v=5';
+import { createStatsUI } from './stats-ui.js?v=5';
+import { trackVisit, markAuthorDevice } from './stats.js?v=5';
 
 export function start({
   backend, root, ownerUid, shareUrl, doc = document, win = window,
   compressCover = null, storage, today = () => todayISO(),
   fetchImpl = (typeof win.fetch === 'function' ? win.fetch.bind(win) : null),
+  trackVisits = true, now: nowFn = () => new Date(),
 }) {
   const state = {
     user: null,
@@ -156,6 +159,7 @@ export function start({
             h('button', { class: 'btn primary', 'data-action': 'add', onclick: () => openForm(null) }, '+ Nouveau livre'),
             h('button', { class: `btn${state.view === 'notes' ? ' active' : ''}`, 'data-action': 'notes', onclick: openNotes }, '✎ Notes-Idées'),
             h('button', { class: 'btn', 'data-action': 'profile', onclick: () => { state.profileDraft = null; state.profileErrors = {}; state.saveError = ''; go('profile'); } }, 'Mon profil'),
+            h('button', { class: 'btn', 'data-action': 'stats', onclick: () => { go('stats'); statsUI.open(); } }, '📈 Statistiques'),
             h('button', { class: 'btn', 'data-action': 'share', onclick: onShare }, 'Lien de partage'),
             h('button', { class: 'btn', 'data-action': 'preview', onclick: () => ((state.preview = true), go('list')) }, 'Voir comme visiteur'),
             h('button', { class: 'btn ghost', 'data-action': 'logout', onclick: () => backend.logout() }, 'Déconnexion'),
@@ -878,6 +882,7 @@ export function start({
     else if (canEdit() && state.view === 'form') body = renderForm();
     else if (canEdit() && state.view === 'profile') body = renderProfileForm();
     else if (canEdit() && state.view === 'notes') body = renderNotes();
+    else if (canEdit() && state.view === 'stats') body = statsUI.render();
     else if (canEdit() && state.view === 'share') body = h('div', {}, renderShare(), renderList());
     else body = renderList();
 
@@ -903,11 +908,25 @@ export function start({
     state, backend, win, doc, h, art, field, render, showToast, canEdit, isOwner, today, compressCover, fetchImpl,
   });
 
+  const statsUI = createStatsUI({ state, backend, win, doc, h, render, now: nowFn });
+
+  // Comptage des visites : une seule fois, après avoir su si c'est l'auteur (ses visites ne comptent pas)
+  let visitTracked = false;
+  const sessionStore = (() => { try { return win.sessionStorage; } catch (e) { return null; } })();
+
   // Import automatique : le site est ouvert avec ?import=<lien Wattpad> (raccourci iPhone ou favori)
   state.pendingImport = readingsUI.takeImportParam();
 
   backend.onAuthChange(async (user) => {
     state.user = user;
+    if (isOwner()) markAuthorDevice(localStore);
+    if (!visitTracked) {
+      visitTracked = true;
+      // pas de comptage sur la page de connexion ni pour un import Wattpad : c'est l'auteur
+      if (!isOwner() && trackVisits && win.location.hash !== '#/admin' && !state.pendingImport) {
+        trackVisit({ backend, local: localStore, session: sessionStore, now: nowFn(), isBot: !!(win.navigator && win.navigator.webdriver) });
+      }
+    }
     if (!isOwner()) {
       state.view = 'list';
       state.preview = false;

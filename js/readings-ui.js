@@ -1,11 +1,11 @@
 // Interface « Mes lectures » : liste publique par état, gestion par le propriétaire, import Wattpad.
 import {
   READING_STATES, STATE_SINGULAR, validateReading, moveReading, nextChapter, readingProgress,
-  countByState, sortReadings, coverSrc, isWattpadCoverUrl,
-} from './readings.js?v=4';
-import { importFromWattpad, parseWattpadLink } from './wattpad.js?v=4';
-import { formatDateFR, isValidCover } from './logic.js?v=4';
-import { COVER_PLACEHOLDER } from './art.js?v=4';
+  countByState, sortReadings, coverSrc, isWattpadCoverUrl, countFavorites,
+} from './readings.js?v=5';
+import { importFromWattpad, parseWattpadLink } from './wattpad.js?v=5';
+import { formatDateFR, isValidCover } from './logic.js?v=5';
+import { COVER_PLACEHOLDER } from './art.js?v=5';
 
 const PENDING_KEY = 'suivi-livres:import-wattpad';
 
@@ -14,7 +14,7 @@ export function createReadingsUI({
 }) {
   const emptyDraft = () => ({
     title: '', author: '', status: 'a-lire', rating: 0, chapter: 0, chaptersTotal: 0, startedAt: '', finishedAt: '',
-    review: '', url: '', cover: '', source: 'manuel', storyCompleted: false,
+    review: '', url: '', cover: '', source: 'manuel', storyCompleted: false, favorite: false,
   });
 
   // ---------- Chargement ----------
@@ -118,7 +118,8 @@ export function createReadingsUI({
   async function persist(next, toast) {
     try {
       const { id, title, author, status, rating, chapter, chaptersTotal, startedAt, finishedAt, review, url, cover, source, storyCompleted } = next;
-      await backend.saveReading({ id, title, author, status, rating, chapter, chaptersTotal, startedAt, finishedAt, review, url, cover, source, storyCompleted });
+      const favorite = next.favorite === true;
+      await backend.saveReading({ id, title, author, status, rating, chapter, chaptersTotal, startedAt, finishedAt, review, url, cover, source, storyCompleted, favorite });
       const i = state.readings.findIndex((r) => r.id === next.id);
       if (i >= 0) state.readings[i] = { ...state.readings[i], ...next, updatedAt: new Date().toISOString() };
       state.readings = sortReadings(state.readings);
@@ -134,6 +135,7 @@ export function createReadingsUI({
     return persist(moveReading(r, status, today()), `« ${r.title} » → ${STATE_SINGULAR[status]}`);
   };
   const onNextChapter = (r) => persist(nextChapter(r), null);
+  const onToggleFavorite = (r) => persist({ ...r, favorite: r.favorite !== true }, r.favorite === true ? `« ${r.title} » retiré des favoris.` : `« ${r.title} » ajouté aux favoris ♥`);
 
   async function onDelete(r) {
     if (!win.confirm(`Retirer « ${r.title} » de tes lectures ? Cette action est définitive.`)) return;
@@ -192,14 +194,22 @@ export function createReadingsUI({
     const others = READING_STATES.filter((s) => s.id !== r.status);
     return h(
       'article',
-      { class: `reading${state.highlightReading === r.id ? ' flash' : ''}`, 'data-reading': r.id },
+      { class: `reading${state.highlightReading === r.id ? ' flash' : ''}${r.favorite ? ' is-fav' : ''}`, 'data-reading': r.id },
       renderCover(r),
       h(
         'div',
         { class: 'r-body' },
         h('div', { class: 'card-head' },
           h('h3', {}, r.title),
-          h('span', { class: `badge rs-${r.status}` }, STATE_SINGULAR[r.status] || r.status)),
+          h('div', { class: 'head-right' },
+            owner
+              ? h('button', {
+                  class: `fav-btn${r.favorite ? ' on' : ''}`, type: 'button', 'data-action': 'toggle-favorite',
+                  'aria-pressed': r.favorite ? 'true' : 'false', 'aria-label': r.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
+                  title: r.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris', onclick: () => onToggleFavorite(r),
+                }, r.favorite ? '♥' : '♡')
+              : (r.favorite ? h('span', { class: 'fav-badge', role: 'img', 'aria-label': 'Coup de cœur', title: 'Coup de cœur' }, '♥') : null),
+            h('span', { class: `badge rs-${r.status}` }, STATE_SINGULAR[r.status] || r.status))),
         r.author ? h('p', { class: 'r-author' }, `de ${r.author}`) : null,
         h('div', { class: 'r-line' },
           stars(r.rating),
@@ -235,7 +245,9 @@ export function createReadingsUI({
     const total = state.readings.length;
     let filter = state.readingFilter;
     if (!filter) filter = counts['en-cours'] ? 'en-cours' : counts['a-lire'] ? 'a-lire' : counts.terminee ? 'terminee' : 'all';
-    const shown = filter === 'all' ? state.readings : state.readings.filter((r) => r.status === filter);
+    const favCount = countFavorites(state.readings);
+    if (filter === 'favoris' && !favCount) filter = 'all';
+    const shown = filter === 'all' ? state.readings : filter === 'favoris' ? state.readings.filter((r) => r.favorite === true) : state.readings.filter((r) => r.status === filter);
     const owner = canEdit();
     return h(
       'section',
@@ -248,10 +260,10 @@ export function createReadingsUI({
       state.readingsError ? h('p', { class: 'state error', role: 'alert' }, state.readingsError) : null,
       total
         ? h('div', { class: 'seg', role: 'tablist', 'aria-label': 'États' },
-            [...READING_STATES, { id: 'all', label: 'Toutes', icon: '' }].map((s) => h('button', {
+            [...READING_STATES, ...(favCount ? [{ id: 'favoris', label: '♥ Favoris' }] : []), { id: 'all', label: 'Toutes', icon: '' }].map((s) => h('button', {
               class: `seg-btn${filter === s.id ? ' on' : ''}`, role: 'tab', 'aria-selected': filter === s.id ? 'true' : 'false', 'data-filter': s.id,
               onclick: () => { state.readingFilter = s.id; state.highlightReading = ''; rerenderKeepScroll(); },
-            }, `${s.label} `, h('span', { class: 'count' }, String(s.id === 'all' ? total : counts[s.id])))))
+            }, `${s.label} `, h('span', { class: 'count' }, String(s.id === 'all' ? total : s.id === 'favoris' ? favCount : counts[s.id])))))
         : null,
       !total && !state.readingsError
         ? h('p', { class: 'state' }, owner ? 'Aucune lecture pour l’instant. Importe une histoire Wattpad ou ajoute un livre à la main.' : 'Aucune lecture partagée pour l’instant.')
@@ -276,6 +288,7 @@ export function createReadingsUI({
       finishedAt: f.finishedAt.value,
       review: f.review.value,
       url: f.url.value,
+      favorite: f.favorite.checked,
     };
   }
 
@@ -372,6 +385,7 @@ export function createReadingsUI({
         field('Terminé le', 'finishedAt', h('input', { class: 'input', name: 'finishedAt', type: 'date', value: d.finishedAt || '' }), e.finishedAt)),
       h('p', { class: 'hint' }, 'Les dates se remplissent toutes seules quand tu changes l’état (si elles sont vides).'),
       field('Mon avis', 'review', h('textarea', { class: 'input', name: 'review', rows: '4', maxlength: '3000', placeholder: 'Ce que j’en ai pensé, mes passages préférés…' }, d.review || ''), e.review, 'Visible par les visiteurs.'),
+      h('label', { class: 'check fav-check' }, h('input', { type: 'checkbox', name: 'favorite', checked: d.favorite === true }), h('span', {}, '♥ Mettre dans mes favoris')),
       field('Lien Wattpad (facultatif)', 'url', h('input', { class: 'input', name: 'url', type: 'url', value: d.url || '', placeholder: 'https://www.wattpad.com/story/…' }), e.url),
       e.form ? h('p', { class: 'state error', role: 'alert' }, e.form) : null,
       h('div', { class: 'toolbar' },
