@@ -57,6 +57,23 @@ export function createFirebaseBackend(config) {
     async deleteNote(id) {
       await deleteDoc(doc(db, 'notes', id));
     },
+    // Mes lectures : lisibles par tous (section publique), modifiables par le propriétaire seulement.
+    async listReadings() {
+      const snap = await getDocs(collection(db, 'readings'));
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    },
+    async saveReading(reading) {
+      const { id, ...data } = reading;
+      if (id) {
+        await setDoc(doc(db, 'readings', id), { ...data, updatedAt: now() }, { merge: true });
+        return id;
+      }
+      const ref = await addDoc(collection(db, 'readings'), { ...data, createdAt: now(), updatedAt: now() });
+      return ref.id;
+    },
+    async deleteReading(id) {
+      await deleteDoc(doc(db, 'readings', id));
+    },
     async getProfile() {
       const snap = await getDoc(doc(db, 'profile', 'main'));
       return snap.exists() ? snap.data() : null;

@@ -3,13 +3,15 @@
 import {
   STATUSES, progress, validateBook, validateNote, formatNumber, statusLabel,
   countdown, todayISO, filterBooks, collectFacets, isValidCover,
-} from './logic.js?v=2';
-import { createReadingStore } from './reading.js?v=2';
-import { HERO_ART, SWORDS_DIVIDER, COVER_PLACEHOLDER, SMALL_ROSE } from './art.js?v=2';
+} from './logic.js?v=3';
+import { createReadingStore } from './reading.js?v=3';
+import { HERO_ART, SWORDS_DIVIDER, COVER_PLACEHOLDER, SMALL_ROSE } from './art.js?v=3';
+import { createReadingsUI } from './readings-ui.js?v=3';
 
 export function start({
   backend, root, ownerUid, shareUrl, doc = document, win = window,
   compressCover = null, storage, today = () => todayISO(),
+  fetchImpl = (typeof win.fetch === 'function' ? win.fetch.bind(win) : null),
 }) {
   const state = {
     user: null,
@@ -33,6 +35,21 @@ export function start({
     noteEditing: null,
     noteDraft: { title: '', body: '', bookId: '' },
     noteErrors: {},
+    // Mes lectures
+    readings: [],
+    readingsError: '',
+    readingFilter: '',
+    readingView: 'list', // list | form | import
+    readingEditing: null,
+    readingDraft: null,
+    readingErrors: {},
+    readingCoverBusy: false,
+    readingCoverError: '',
+    importText: '',
+    importBusy: false,
+    importError: '',
+    pendingImport: '',
+    highlightReading: '',
   };
 
   let localStore = storage;
@@ -92,15 +109,31 @@ export function start({
     } catch (e) {
       state.loadError = 'Impossible de charger les données. Réessaie dans un instant.';
     }
+    await readingsUI.load();
     state.loading = false;
     render();
   }
 
+  const isReadingsTab = () => win.location.hash === '#/lectures';
+
   const go = (view) => {
     state.view = view;
+    if (view !== 'list' && isReadingsTab()) win.location.hash = '';
     render();
     win.scrollTo?.(0, 0);
   };
+
+  function renderTabs() {
+    const onReadings = isReadingsTab();
+    return h(
+      'nav',
+      { class: 'tabs', 'aria-label': 'Sections' },
+      h('a', { class: `tab${onReadings ? '' : ' on'}`, href: '#', 'data-tab': 'books', 'aria-current': onReadings ? null : 'page',
+        onclick: (e) => { e.preventDefault(); state.view = 'list'; win.location.hash = ''; render(); } }, '📚 Mes livres'),
+      h('a', { class: `tab${onReadings ? ' on' : ''}`, href: '#/lectures', 'data-tab': 'readings', 'aria-current': onReadings ? 'page' : null,
+        onclick: (e) => { e.preventDefault(); state.view = 'list'; win.location.hash = '#/lectures'; render(); } }, '📖 Mes lectures'),
+    );
+  }
 
   // ---------- En-tête ----------
 
@@ -113,6 +146,7 @@ export function start({
       h('h1', {}, state.profile.displayName || 'Mes livres'),
       state.profile.bio ? h('p', { class: 'bio' }, state.profile.bio) : null,
       art(SWORDS_DIVIDER, 'divider'),
+      renderTabs(),
       owner
         ? h(
             'nav',
@@ -769,6 +803,7 @@ export function start({
           },
         },
         h('h1', {}, 'Connexion'),
+        state.pendingImport ? h('p', { class: 'hint', 'data-role': 'pending-import' }, 'Connecte-toi : l’histoire Wattpad sera ajoutée à « À lire » juste après.') : null,
         field('Adresse e-mail', 'email', h('input', { class: 'input', name: 'email', type: 'email', autocomplete: 'username', required: true })),
         field('Mot de passe', 'password', h('input', { class: 'input', name: 'password', type: 'password', autocomplete: 'current-password', required: true })),
         state.loginError ? h('p', { class: 'state error', role: 'alert' }, state.loginError) : null,
@@ -791,7 +826,8 @@ export function start({
       return;
     }
     let body;
-    if (canEdit() && state.view === 'form') body = renderForm();
+    if (isReadingsTab() && state.view === 'list') body = readingsUI.render();
+    else if (canEdit() && state.view === 'form') body = renderForm();
     else if (canEdit() && state.view === 'profile') body = renderProfileForm();
     else if (canEdit() && state.view === 'notes') body = renderNotes();
     else if (canEdit() && state.view === 'share') body = h('div', {}, renderShare(), renderList());
@@ -815,17 +851,30 @@ export function start({
 
   win.addEventListener('hashchange', render);
 
+  const readingsUI = createReadingsUI({
+    state, backend, win, doc, h, art, field, render, showToast, canEdit, isOwner, today, compressCover, fetchImpl,
+  });
+
+  // Import automatique : le site est ouvert avec ?import=<lien Wattpad> (raccourci iPhone ou favori)
+  state.pendingImport = readingsUI.takeImportParam();
+
   backend.onAuthChange(async (user) => {
     state.user = user;
     if (!isOwner()) {
       state.view = 'list';
       state.preview = false;
       state.notes = [];
+      state.readingView = 'list';
     }
-    if (isOwner() && win.location.hash === '#/admin') win.location.hash = '';
+    if (state.pendingImport && !user) {
+      if (win.location.hash !== '#/admin') win.location.hash = '#/admin';
+    } else if (isOwner() && win.location.hash === '#/admin') {
+      win.location.hash = state.pendingImport ? '#/lectures' : '';
+    }
     await refresh();
+    if (isOwner() && state.pendingImport) await readingsUI.autoImport();
   });
 
   render();
-  return { state, refresh, reading };
+  return { state, refresh, reading, readingsUI };
 }
