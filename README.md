@@ -16,7 +16,10 @@ La sécurité est appliquée **côté serveur** par `firestore.rules` : même en
 - **Notes-Idées** : bloc-notes privé (collection `notes`, lecture/écriture réservées au propriétaire).
 - **Icône d'app** pour l'écran d'accueil iPhone/Android (`icons/`, `manifest.webmanifest`).
 
-⚠️ Après mise à jour, republier `firestore.rules` (nouvelle règle `notes`).
+- **Mes lectures** (v3) : livres lus / en cours / à lire, note, avis, progression, dates automatiques. Visible par les visiteurs, modifiable par le propriétaire.
+- **Import Wattpad** : coller un lien d'histoire (ou de chapitre) remplit la fiche. Ouvrir le site avec `?import=<lien>` (raccourci iPhone ou favori) ajoute directement l'histoire à « À lire ».
+
+⚠️ Après mise à jour, republier `firestore.rules` (règles `notes` et `readings`).
 
 ## Mise en ligne (≈ 20 minutes)
 

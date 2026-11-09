@@ -25,6 +25,12 @@ service cloud.firestore {
       allow read, write: if isOwner();
     }
 
+    // Mes lectures : visibles par tous (section publique), modifiables par le propriétaire seulement.
+    match /readings/{readingId} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+
     // Tout le reste est fermé.
     match /{document=**} {
       allow read, write: if false;
