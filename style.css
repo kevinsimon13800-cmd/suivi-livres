@@ -227,3 +227,21 @@ code { font-size: .9em; }
 }
 .panel.help { padding: 12px 20px; gap: 0; }
 .panel.help[open] { gap: 10px; padding-bottom: 18px; }
+
+/* ---------- Réseaux sociaux ---------- */
+.socials { display: flex; justify-content: center; gap: 22px; margin: 16px auto 4px; flex-wrap: wrap; }
+.social { display: flex; flex-direction: column; align-items: center; gap: 2px; text-decoration: none; color: var(--accent); font: 700 .78rem var(--sans); letter-spacing: .02em; }
+.social-medal { position: relative; width: 76px; height: 76px; display: block; }
+.social-wreath { position: absolute; inset: 0; width: 100%; height: 100%; }
+.social-disc {
+  position: absolute; inset: 15px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(150deg, #f7d3db, #e9a9b9); color: #fff;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #ecc6cf, 0 6px 14px -8px rgba(160, 60, 90, .55);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.social-icon { width: 30px; height: 30px; }
+.social:hover .social-disc, .social:focus-visible .social-disc { transform: translateY(-2px) scale(1.04); box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--accent), 0 8px 16px -8px rgba(160, 60, 90, .6); }
+.social:focus-visible { outline: none; }
+.social:focus-visible .social-label { text-decoration: underline; }
+.subhead { font-size: 1.25rem; margin-top: 6px; }
+@media (prefers-reduced-motion: reduce) { .social-disc { transition: none; } }
