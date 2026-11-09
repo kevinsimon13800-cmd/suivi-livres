@@ -31,6 +31,18 @@ service cloud.firestore {
       allow write: if isOwner();
     }
 
+    // Statistiques de visites : chaque visiteur peut seulement ajouter +1 ; lecture réservée au propriétaire.
+    match /stats/{key} {
+      allow read: if isOwner();
+      allow create: if key.matches('^(all|d-[0-9]{4}-[0-9]{2}-[0-9]{2}|w-[0-9]{4}-W[0-9]{2}|m-[0-9]{4}-[0-9]{2}|q-[0-9]{4}-Q[1-4]|s-[0-9]{4}-S[12]|y-[0-9]{4})$')
+        && request.resource.data.keys().hasOnly(['visits', 'visitors'])
+        && request.resource.data.get('visits', 0) in [0, 1]
+        && request.resource.data.get('visitors', 0) in [0, 1];
+      allow update: if request.resource.data.keys().hasOnly(['visits', 'visitors'])
+        && request.resource.data.get('visits', 0) - resource.data.get('visits', 0) in [0, 1]
+        && request.resource.data.get('visitors', 0) - resource.data.get('visitors', 0) in [0, 1];
+    }
+
     // Tout le reste est fermé.
     match /{document=**} {
       allow read, write: if false;

@@ -19,7 +19,11 @@ La sécurité est appliquée **côté serveur** par `firestore.rules` : même en
 - **Mes lectures** (v3) : livres lus / en cours / à lire, note, avis, progression, dates automatiques. Visible par les visiteurs, modifiable par le propriétaire.
 - **Import Wattpad** : coller un lien d'histoire (ou de chapitre) remplit la fiche. Ouvrir le site avec `?import=<lien>` (raccourci iPhone ou favori) ajoute directement l'histoire à « À lire ».
 
-⚠️ Après mise à jour, republier `firestore.rules` (règles `notes` et `readings`).
+- **Réseaux sociaux** (v4) : Instagram et Wattpad dans « Mon profil », pictogrammes roses dans l'en-tête.
+- **Favoris** (v5) : cœur sur les lectures + filtre « ♥ Favoris ».
+- **Statistiques** (v5, propriétaire) : visiteurs et visites par jour, semaine, mois, trimestre, semestre, année (heure de Paris). Les visites de l'auteur ne sont pas comptées.
+
+⚠️ Après mise à jour, republier `firestore.rules` (règles `notes`, `readings` et `stats`).
 
 ## Mise en ligne (≈ 20 minutes)
 
