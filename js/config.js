@@ -9,4 +9,4 @@ export const firebaseConfig = {
 
 // UID de ton compte (Firebase > Authentication > Utilisateurs). Sert uniquement à l'affichage ;
 // la vraie protection est dans firestore.rules.
-export const OWNER_UID = '900ZcMrWXfTMz4MNdW9NLnYDmm62';
+export const OWNER_UID = 'xPj1UD1UoYQf9CQivEZdr4Fg1ME2';
