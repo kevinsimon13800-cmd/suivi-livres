@@ -3,10 +3,11 @@
 import {
   STATUSES, progress, validateBook, validateNote, formatNumber, statusLabel,
   countdown, todayISO, filterBooks, collectFacets, isValidCover,
-} from './logic.js?v=3';
-import { createReadingStore } from './reading.js?v=3';
-import { HERO_ART, SWORDS_DIVIDER, COVER_PLACEHOLDER, SMALL_ROSE } from './art.js?v=3';
-import { createReadingsUI } from './readings-ui.js?v=3';
+} from './logic.js?v=4';
+import { createReadingStore } from './reading.js?v=4';
+import { HERO_ART, SWORDS_DIVIDER, COVER_PLACEHOLDER, SMALL_ROSE } from './art.js?v=4';
+import { createReadingsUI } from './readings-ui.js?v=4';
+import { SOCIALS, normalizeSocial, safeSocialUrl, socialIconSvg, SOCIAL_WREATH } from './socials.js?v=4';
 
 export function start({
   backend, root, ownerUid, shareUrl, doc = document, win = window,
@@ -145,6 +146,7 @@ export function start({
       art(HERO_ART, 'hero-art'),
       h('h1', {}, state.profile.displayName || 'Mes livres'),
       state.profile.bio ? h('p', { class: 'bio' }, state.profile.bio) : null,
+      renderSocials(),
       art(SWORDS_DIVIDER, 'divider'),
       renderTabs(),
       owner
@@ -153,7 +155,7 @@ export function start({
             { class: 'toolbar', 'aria-label': 'Espace auteur' },
             h('button', { class: 'btn primary', 'data-action': 'add', onclick: () => openForm(null) }, '+ Nouveau livre'),
             h('button', { class: `btn${state.view === 'notes' ? ' active' : ''}`, 'data-action': 'notes', onclick: openNotes }, '✎ Notes-Idées'),
-            h('button', { class: 'btn', 'data-action': 'profile', onclick: () => go('profile') }, 'Mon profil'),
+            h('button', { class: 'btn', 'data-action': 'profile', onclick: () => { state.profileDraft = null; state.profileErrors = {}; state.saveError = ''; go('profile'); } }, 'Mon profil'),
             h('button', { class: 'btn', 'data-action': 'share', onclick: onShare }, 'Lien de partage'),
             h('button', { class: 'btn', 'data-action': 'preview', onclick: () => ((state.preview = true), go('list')) }, 'Voir comme visiteur'),
             h('button', { class: 'btn ghost', 'data-action': 'logout', onclick: () => backend.logout() }, 'Déconnexion'),
@@ -735,6 +737,28 @@ export function start({
     );
   }
 
+  // ---------- Réseaux sociaux ----------
+
+  function renderSocials() {
+    const links = SOCIALS.map((s) => ({ ...s, url: safeSocialUrl(s.id, state.profile[s.id]) })).filter((s) => s.url);
+    if (!links.length) return null;
+    return h(
+      'nav',
+      { class: 'socials', 'aria-label': 'Mes réseaux sociaux' },
+      links.map((s) => {
+        const a = h('a', {
+          class: `social social-${s.id}`, href: s.url, target: '_blank', rel: 'noopener noreferrer me',
+          'data-social': s.id, 'aria-label': `${s.label} (nouvel onglet)`,
+        });
+        const medal = doc.createElement('span');
+        medal.className = 'social-medal';
+        medal.innerHTML = SOCIAL_WREATH + `<span class="social-disc">${socialIconSvg(s.id)}</span>`; // SVG constants only
+        a.append(medal, h('span', { class: 'social-label' }, s.label));
+        return a;
+      }),
+    );
+  }
+
   // ---------- Profil ----------
 
   function renderProfileForm() {
@@ -747,10 +771,23 @@ export function start({
           ev.preventDefault();
           const f = ev.target.elements;
           const profile = { displayName: f.displayName.value.trim().slice(0, 80) || 'Mes livres', bio: f.bio.value.trim().slice(0, 500) };
+          const errors = {};
+          for (const s of SOCIALS) {
+            const r = normalizeSocial(s.id, f[s.id].value);
+            if (r.ok) profile[s.id] = r.url; else errors[s.id] = r.error;
+          }
+          if (Object.keys(errors).length) {
+            state.profileErrors = errors;
+            state.profileDraft = { displayName: f.displayName.value, bio: f.bio.value, ...Object.fromEntries(SOCIALS.map((s) => [s.id, f[s.id].value])) };
+            render();
+            return;
+          }
           try {
             await backend.saveProfile(profile);
             state.profile = { ...state.profile, ...profile };
             state.saveError = '';
+            state.profileErrors = {};
+            state.profileDraft = null;
             go('list');
             showToast('Profil enregistré.');
           } catch (e) {
@@ -760,8 +797,19 @@ export function start({
         },
       },
       h('h2', {}, 'Mon profil public'),
-      field('Nom affiché', 'displayName', h('input', { class: 'input', name: 'displayName', value: state.profile.displayName, maxlength: '80' })),
-      field('Présentation', 'bio', h('textarea', { class: 'input', name: 'bio', rows: '3', maxlength: '500' }, state.profile.bio || '')),
+      field('Nom affiché', 'displayName', h('input', { class: 'input', name: 'displayName', value: (state.profileDraft || state.profile).displayName, maxlength: '80' })),
+      field('Présentation', 'bio', h('textarea', { class: 'input', name: 'bio', rows: '3', maxlength: '500' }, (state.profileDraft || state.profile).bio || '')),
+      h('h3', { class: 'subhead' }, 'Mes réseaux sociaux'),
+      h('p', { class: 'hint' }, 'Ton pseudo ou le lien de ton profil. Laisse vide pour ne pas afficher l’icône.'),
+      SOCIALS.map((s) => field(
+        s.label,
+        s.id,
+        h('input', {
+          class: 'input', name: s.id, autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: s.placeholder,
+          value: state.profileDraft ? state.profileDraft[s.id] : (state.profile[s.id] || ''),
+        }),
+        (state.profileErrors || {})[s.id],
+      )),
       state.saveError ? h('p', { class: 'state error', role: 'alert' }, state.saveError) : null,
       h(
         'div',

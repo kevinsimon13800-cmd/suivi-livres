@@ -2,10 +2,10 @@
 import {
   READING_STATES, STATE_SINGULAR, validateReading, moveReading, nextChapter, readingProgress,
   countByState, sortReadings, coverSrc, isWattpadCoverUrl,
-} from './readings.js?v=3';
-import { importFromWattpad, parseWattpadLink } from './wattpad.js?v=3';
-import { formatDateFR, isValidCover } from './logic.js?v=3';
-import { COVER_PLACEHOLDER } from './art.js?v=3';
+} from './readings.js?v=4';
+import { importFromWattpad, parseWattpadLink } from './wattpad.js?v=4';
+import { formatDateFR, isValidCover } from './logic.js?v=4';
+import { COVER_PLACEHOLDER } from './art.js?v=4';
 
 const PENDING_KEY = 'suivi-livres:import-wattpad';
 
