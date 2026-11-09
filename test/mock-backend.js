@@ -5,12 +5,14 @@
 export const OWNER = { uid: 'owner-uid', email: 'moi@exemple.fr', password: 'bon-mot-de-passe' };
 export const OTHER = { uid: 'other-uid', email: 'autre@exemple.fr', password: 'autre-mdp' };
 
-export function createMockBackend(seed = { books: [], profile: null }) {
+export function createMockBackend(seed = { books: [], profile: null, notes: [] }) {
   let user = null;
   let listener = null;
   let seq = 0;
   const books = new Map(seed.books.map((b) => [b.id, { ...b }]));
   let profile = seed.profile;
+  const notes = new Map((seed.notes || []).map((n) => [n.id, { ...n }]));
+  let nseq = 0;
   const accounts = [OWNER, OTHER];
   const isOwner = () => user && user.uid === OWNER.uid;
   const denied = () => Object.assign(new Error('permission-denied'), { code: 'permission-denied' });
@@ -55,6 +57,27 @@ export function createMockBackend(seed = { books: [], profile: null }) {
       if (!isOwner()) throw denied();
       books.delete(id);
     },
+    // notes : lecture ET écriture réservées au propriétaire
+    async listNotes() {
+      if (!isOwner()) throw denied();
+      return [...notes.values()].map((n) => ({ ...n }));
+    },
+    async saveNote(note) {
+      if (!isOwner()) throw denied();
+      const { id, ...data } = note;
+      const now = new Date().toISOString();
+      if (id) {
+        notes.set(id, { ...notes.get(id), ...data, id, updatedAt: now });
+        return id;
+      }
+      const nid = `note-${++nseq}`;
+      notes.set(nid, { ...data, id: nid, createdAt: now, updatedAt: now });
+      return nid;
+    },
+    async deleteNote(id) {
+      if (!isOwner()) throw denied();
+      notes.delete(id);
+    },
     async getProfile() {
       return profile ? { ...profile } : null;
     },
@@ -62,6 +85,6 @@ export function createMockBackend(seed = { books: [], profile: null }) {
       if (!isOwner()) throw denied();
       profile = { ...(profile || {}), ...p };
     },
-    _raw: { books },
+    _raw: { books, notes },
   };
 }
