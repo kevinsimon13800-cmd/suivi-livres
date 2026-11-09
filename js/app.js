@@ -3,9 +3,9 @@
 import {
   STATUSES, progress, validateBook, validateNote, formatNumber, statusLabel,
   countdown, todayISO, filterBooks, collectFacets, isValidCover,
-} from './logic.js';
-import { createReadingStore } from './reading.js';
-import { HERO_ART, SWORDS_DIVIDER, COVER_PLACEHOLDER, SMALL_ROSE } from './art.js';
+} from './logic.js?v=2';
+import { createReadingStore } from './reading.js?v=2';
+import { HERO_ART, SWORDS_DIVIDER, COVER_PLACEHOLDER, SMALL_ROSE } from './art.js?v=2';
 
 export function start({
   backend, root, ownerUid, shareUrl, doc = document, win = window,

@@ -1,7 +1,7 @@
 // Réduit et compresse une photo de couverture dans le navigateur avant de l'enregistrer.
 // Résultat : une image JPEG en "data URL" d'environ 30 à 120 Ko, stockée directement dans le livre
 // (pas besoin de Firebase Storage, qui exige le forfait payant).
-import { MAX_COVER_CHARS } from './logic.js';
+import { MAX_COVER_CHARS } from './logic.js?v=2';
 
 const MAX_W = 600;
 const MAX_H = 900;
