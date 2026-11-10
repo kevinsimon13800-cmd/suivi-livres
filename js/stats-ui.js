@@ -1,6 +1,6 @@
 // Écran « Statistiques » (propriétaire uniquement) : chiffres clés + histogramme par période + tableau.
-import { PERIODS, buildSeries, allKeys, parisDate, firstDay } from './stats.js?v=6';
-import { formatDateFR } from './logic.js?v=6';
+import { PERIODS, buildSeries, allKeys, parisDate, firstDay } from './stats.js?v=7';
+import { formatDateFR } from './logic.js?v=7';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 

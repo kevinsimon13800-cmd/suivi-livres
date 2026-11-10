@@ -3,20 +3,22 @@
 import {
   STATUSES, progress, validateBook, validateNote, formatNumber, statusLabel,
   countdown, todayISO, filterBooks, collectFacets, isValidCover,
-} from './logic.js?v=6';
-import { createReadingStore } from './reading.js?v=6';
-import { HERO_ART, SWORDS_DIVIDER, COVER_PLACEHOLDER, SMALL_ROSE } from './art.js?v=6';
-import { createReadingsUI } from './readings-ui.js?v=6';
-import { SOCIALS, normalizeSocial, safeSocialUrl, socialIconSvg, SOCIAL_WREATH } from './socials.js?v=6';
-import { createStatsUI } from './stats-ui.js?v=6';
-import { NAV_ICONS } from './nav-icons.js?v=6';
-import { trackVisit, markAuthorDevice } from './stats.js?v=6';
+} from './logic.js?v=7';
+import { createReadingStore } from './reading.js?v=7';
+import { HERO_ART, SWORDS_DIVIDER, COVER_PLACEHOLDER, SMALL_ROSE } from './art.js?v=7';
+import { createReadingsUI } from './readings-ui.js?v=7';
+import { SOCIALS, normalizeSocial, safeSocialUrl, socialIconSvg, SOCIAL_WREATH } from './socials.js?v=7';
+import { createStatsUI } from './stats-ui.js?v=7';
+import { NAV_ICONS } from './nav-icons.js?v=7';
+import { trackVisit, markAuthorDevice } from './stats.js?v=7';
+import { createCountersAndAtelier } from './atelier-wiring.js?v=7';
+import { createDictation } from './dictation.js?v=7';
 
 export function start({
   backend, root, ownerUid, shareUrl, doc = document, win = window,
   compressCover = null, storage, today = () => todayISO(),
   fetchImpl = (typeof win.fetch === 'function' ? win.fetch.bind(win) : null),
-  trackVisits = true, now: nowFn = () => new Date(),
+  trackVisits = true, now: nowFn = () => new Date(), dictation = createDictation(win),
 }) {
   const state = {
     user: null,
@@ -40,6 +42,9 @@ export function start({
     noteEditing: null,
     noteDraft: { title: '', body: '', bookId: '' },
     noteErrors: {},
+    noteDictated: false,
+    dictating: false,
+    dictInfo: '',
     // Mes lectures
     readings: [],
     readingsError: '',
@@ -115,6 +120,7 @@ export function start({
       state.loadError = 'Impossible de charger les données. Réessaie dans un instant.';
     }
     await readingsUI.load();
+    await atelier.load(isOwner());
     state.loading = false;
     render();
   }
@@ -153,7 +159,7 @@ export function start({
         books, readings,
         item('button', 'add', 'Écrire', state.view === 'form', { type: 'button', 'data-action': 'add' }, () => { state.moreOpen = false; openForm(null); }),
         item('button', 'notes', 'Notes', state.view === 'notes', { type: 'button', 'data-action': 'notes' }, () => { state.moreOpen = false; openNotes(); }),
-        item('button', 'more', 'Plus', state.moreOpen || ['profile', 'stats', 'share'].includes(state.view), { type: 'button', 'data-action': 'more', 'aria-expanded': state.moreOpen ? 'true' : 'false' },
+        item('button', 'more', 'Plus', state.moreOpen || ['profile', 'stats', 'share', 'characters', 'chapter', 'poll'].includes(state.view), { type: 'button', 'data-action': 'more', 'aria-expanded': state.moreOpen ? 'true' : 'false' },
           () => { state.moreOpen = !state.moreOpen; render(); }),
       ];
       sheet = h(
@@ -165,6 +171,9 @@ export function start({
           { class: 'bn-panel' },
           h('button', { class: 'btn', 'data-action': 'profile', onclick: closeThen(() => { state.profileDraft = null; state.profileErrors = {}; state.saveError = ''; go('profile'); }) }, 'Mon profil'),
           h('button', { class: 'btn', 'data-action': 'stats', onclick: closeThen(() => { go('stats'); statsUI.open(); }) }, '📈 Statistiques'),
+          h('button', { class: 'btn', 'data-action': 'characters', onclick: closeThen(() => { go('characters'); atelier.characters.open(); }) }, 'Personnages'),
+          h('button', { class: 'btn', 'data-action': 'chapter', onclick: closeThen(() => { go('chapter'); atelier.chapter.open(); }) }, 'Prochain chapitre'),
+          h('button', { class: 'btn', 'data-action': 'poll', onclick: closeThen(() => { go('poll'); atelier.poll.open(); }) }, 'Sondage'),
           h('button', { class: 'btn', 'data-action': 'share', onclick: closeThen(onShare) }, 'Lien de partage'),
           h('button', { class: 'btn', 'data-action': 'preview', onclick: closeThen(() => { state.preview = true; go('list'); }) }, 'Voir comme visiteur'),
           h('button', { class: 'btn ghost', 'data-action': 'logout', onclick: closeThen(() => backend.logout()) }, 'Déconnexion'),
@@ -655,6 +664,7 @@ export function start({
 
   function editNote(n) {
     state.noteEditing = n;
+    state.noteDictated = false;
     state.noteDraft = { title: n.title || '', body: n.body || '', bookId: n.bookId || '' };
     state.noteErrors = {};
     render();
@@ -676,8 +686,11 @@ export function start({
       return;
     }
     try {
-      await backend.saveNote({ ...res.value, id: state.noteEditing ? state.noteEditing.id : undefined });
+      if (state.dictating && dictation) dictation.stop();
+      const source = state.noteDictated ? 'dicte' : (state.noteEditing && state.noteEditing.source) || 'ecrit';
+      await backend.saveNote({ ...res.value, source, id: state.noteEditing ? state.noteEditing.id : undefined });
       state.noteEditing = null;
+      state.noteDictated = false;
       state.noteDraft = emptyNote();
       state.noteErrors = {};
       await loadNotes();
@@ -703,6 +716,46 @@ export function start({
     } catch (e) {
       state.notesError = 'Suppression refusée.';
       render();
+    }
+  }
+
+  function setDictUi() {
+    const b = root.querySelector('[data-action="dictate"]');
+    if (b) { b.textContent = state.dictating ? '■ Arrêter la dictée' : '🎙 Dicter'; b.classList.toggle('on', state.dictating); }
+    const i = root.querySelector('[data-role="dict-info"]');
+    if (i) i.textContent = state.dictInfo;
+  }
+
+  function toggleDictation() {
+    if (!dictation) return;
+    if (state.dictating) { dictation.stop(); return; }
+    const area = () => root.querySelector('[data-role="note-form"] [name="body"]');
+    let base = area() ? area().value : '';
+    if (base && !/\s$/.test(base)) base += ' ';
+    let failed = false;
+    state.dictating = true;
+    state.dictInfo = 'Je t’écoute…';
+    setDictUi();
+    try {
+      dictation.start({
+        onPartial: (t) => { const el = area(); if (el) el.value = base + t; },
+        onFinal: (t) => { if (!t) return; base += `${t} `; const el = area(); if (el) el.value = base; state.noteDictated = true; },
+        onError: (code) => {
+          failed = true;
+          state.dictInfo = code === 'not-allowed' || code === 'service-not-allowed' ? 'Micro refusé : écris la note à la main.' : 'Dictée interrompue.';
+        },
+        onEnd: () => {
+          state.dictating = false;
+          if (!failed) state.dictInfo = '';
+          const el = area();
+          if (el) state.noteDraft = { ...state.noteDraft, body: el.value };
+          setDictUi();
+        },
+      });
+    } catch (e) {
+      state.dictating = false;
+      state.dictInfo = 'Dictée indisponible ici.';
+      setDictUi();
     }
   }
 
@@ -736,6 +789,14 @@ export function start({
           e.title,
         ),
         field('Note', 'body', h('textarea', { class: 'input', name: 'body', rows: '5' }, d.body), e.body),
+        dictation
+          ? h(
+              'div',
+              { class: 'dict-row' },
+              h('button', { class: `btn small${state.dictating ? ' on' : ''}`, type: 'button', 'data-action': 'dictate', onclick: toggleDictation }, state.dictating ? '■ Arrêter la dictée' : '🎙 Dicter'),
+              h('span', { class: 'hint', 'data-role': 'dict-info', 'aria-live': 'polite' }, state.dictInfo),
+            )
+          : null,
         e.form ? h('p', { class: 'state error', role: 'alert' }, e.form) : null,
         h(
           'div',
@@ -744,7 +805,7 @@ export function start({
           state.noteEditing
             ? h('button', {
                 class: 'btn', type: 'button', 'data-action': 'cancel-note',
-                onclick: () => { state.noteEditing = null; state.noteDraft = emptyNote(); state.noteErrors = {}; render(); },
+                onclick: () => { state.noteEditing = null; state.noteDictated = false; state.noteDraft = emptyNote(); state.noteErrors = {}; render(); },
               }, 'Annuler')
             : null,
           state.noteEditing
@@ -771,6 +832,7 @@ export function start({
                     onkeydown: (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); editNote(n); } },
                   },
                   n.bookId && bookTitle(n.bookId) ? h('p', { class: 'genre' }, `📖 ${bookTitle(n.bookId)}`) : null,
+                  n.source === 'dicte' ? h('span', { class: 'pill', 'data-role': 'note-dicte' }, '🎙 Dictée') : null,
                   n.title ? h('h3', {}, n.title) : null,
                   n.body ? h('p', { class: 'note-body' }, n.body) : null,
                 )),
@@ -915,13 +977,16 @@ export function start({
       return;
     }
     let body;
-    if (isReadingsTab() && state.view === 'list') body = readingsUI.render();
+    if (isReadingsTab() && state.view === 'list') body = state.readingView === 'list' ? h('div', {}, atelier.counter.render(), readingsUI.render()) : readingsUI.render();
     else if (canEdit() && state.view === 'form') body = renderForm();
     else if (canEdit() && state.view === 'profile') body = renderProfileForm();
     else if (canEdit() && state.view === 'notes') body = renderNotes();
     else if (canEdit() && state.view === 'stats') body = statsUI.render();
+    else if (canEdit() && state.view === 'characters') body = atelier.characters.render();
+    else if (canEdit() && state.view === 'chapter') body = atelier.chapter.renderAdmin();
+    else if (canEdit() && state.view === 'poll') body = atelier.poll.renderAdmin();
     else if (canEdit() && state.view === 'share') body = h('div', {}, renderShare(), renderList());
-    else body = renderList();
+    else body = h('div', { class: 'home' }, atelier.chapter.renderBanner(), atelier.poll.renderPublic(), renderList());
 
     root.append(
       h(
@@ -947,6 +1012,8 @@ export function start({
   });
 
   const statsUI = createStatsUI({ state, backend, win, doc, h, render, now: nowFn });
+
+  const atelier = createCountersAndAtelier({ state, backend, win, doc, h, field, art, render, showToast, isOwner, today, now: nowFn, storage: localStore });
 
   // Comptage des visites : une seule fois, après avoir su si c'est l'auteur (ses visites ne comptent pas)
   let visitTracked = false;
@@ -982,6 +1049,8 @@ export function start({
       state.view = 'list';
       state.preview = false;
       state.notes = [];
+      state.characters = [];
+      state.relations = [];
       state.readingView = 'list';
     }
     if (state.pendingImport && !user) {
