@@ -21,6 +21,8 @@ La sécurité est appliquée **côté serveur** par `firestore.rules` : même en
 
 - **Réseaux sociaux** (v4) : Instagram et Wattpad dans « Mon profil », pictogrammes roses dans l'en-tête.
 - **Favoris** (v5) : cœur sur les lectures + filtre « ♥ Favoris ».
+- **Menu du bas** (v6) : barre façon appli (Livres, Lectures, +, Notes, Plus) sur téléphone et PC. Toucher un livre ou une note l'ouvre pour la modifier ou la supprimer. Une note se rattache à une de tes histoires ou reçoit un nom libre.
+- **Visites** (v6) : l'ouverture de `…/suivi-livres/?perso` marque un appareil comme le tien (à faire une fois par appareil, y compris l'appli de l'écran d'accueil iPhone).
 - **Statistiques** (v5, propriétaire) : visiteurs et visites par jour, semaine, mois, trimestre, semestre, année (heure de Paris). Les visites de l'auteur ne sont pas comptées.
 
 ⚠️ Après mise à jour, republier `firestore.rules` (règles `notes`, `readings` et `stats`).
