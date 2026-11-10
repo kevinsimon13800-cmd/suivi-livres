@@ -159,7 +159,10 @@ test('collectFacets : genres et étiquettes uniques et triés', () => {
 
 test('validateNote : titre ou texte requis, limites', () => {
   assert.ok(validateNote({ title: ' ', body: ' ' }).errors.title);
-  assert.equal(validateNote({ title: '', body: 'Une idée' }).ok, true);
+  assert.ok(validateNote({ title: '', body: 'Une idée' }).errors.title, 'sans histoire, un nom est obligatoire');
+  assert.equal(validateNote({ title: 'Projet futur', body: 'Une idée' }).ok, true);
+  assert.equal(validateNote({ title: '', body: 'Scène du duel', bookId: 'a' }).ok, true, 'liée à une histoire : le titre est facultatif');
+  assert.ok(validateNote({ title: '', body: '', bookId: 'a' }).errors.title, 'liée à une histoire mais vide');
   assert.deepEqual(validateNote({ title: ' Idée ', body: ' x ', bookId: 'a' }).value, { title: 'Idée', body: 'x', bookId: 'a' });
   assert.ok(validateNote({ title: 'x'.repeat(121) }).errors.title);
   assert.ok(validateNote({ title: 't', body: 'x'.repeat(10001) }).errors.body);

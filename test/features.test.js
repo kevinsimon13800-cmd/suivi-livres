@@ -213,7 +213,8 @@ test('propriétaire : pas de cases de lecture, mais le nombre de chapitres list�
   const ctx = await mount();
   await ctx.loginAs(OWNER);
   assert.equal(ctx.$('[data-role="reader"]'), null);
-  assert.match(ctx.$('[data-book="a"]').textContent, /3 titres de chapitre visibles par les lecteurs/);
+  assert.equal(ctx.$('[data-book="a"] [data-action="delete"]'), null, 'plus de boutons sur la carte');
+  assert.equal(ctx.$('[data-book="a"] .btn'), null, 'carte allégée : aucun bouton');
   ctx.close();
 });
 
@@ -252,7 +253,7 @@ test('propriétaire : ajoute une couverture — la saisie en cours est conservé
 test('propriétaire : modifier un livre pré-remplit étiquettes, chapitres, date, couverture ; retirer la couverture', async () => {
   const ctx = await mount();
   await ctx.loginAs(OWNER);
-  await ctx.click(ctx.$('[data-book="a"] [data-action="edit"]'));
+  await ctx.click(ctx.$('[data-book="a"]'));
   let form = ctx.$('[data-role="book-form"]');
   assert.equal(form.elements.tags.value, 'Grèce, romance');
   assert.equal(form.elements.chapterTitles.value, 'L’oracle\nLe temple\nLa lame');
@@ -340,7 +341,7 @@ test('notes : liste, ajout, modification, suppression', async () => {
   assert.equal(ctx.$('[data-role="note-form"]').elements.title.value, '', 'le formulaire se vide après ajout');
 
   // modification
-  await ctx.click(ctx.$('[data-note="n1"] [data-action="edit-note"]'));
+  await ctx.click(ctx.$('[data-note="n1"]'));
   form = ctx.$('[data-role="note-form"]');
   assert.equal(form.elements.title.value, 'Idée de scène');
   assert.equal(form.elements.bookId.value, 'a');
@@ -351,7 +352,8 @@ test('notes : liste, ajout, modification, suppression', async () => {
   assert.equal(ctx.backend._raw.notes.size, 2);
 
   // suppression
-  await ctx.click(ctx.$('[data-note="n1"] [data-action="delete-note"]'));
+  await ctx.click(ctx.$('[data-note="n1"]'));
+  await ctx.click(ctx.$('[data-role="note-form"] [data-action="delete-note"]'));
   await tick(30);
   assert.equal(ctx.backend._raw.notes.has('n1'), false);
   assert.deepEqual(notes(), ['Personnage : Lysandra']);
@@ -364,9 +366,10 @@ test('notes : note vide refusée, suppression annulée conserve la note', async 
   await ctx.click(ctx.$('[data-action="notes"]'));
   await tick(30);
   await ctx.submit(ctx.$('[data-role="note-form"]'));
-  assert.match(ctx.root.textContent, /au moins un titre ou un texte/);
+  assert.match(ctx.root.textContent, /Donne un nom à ta note ou choisis une de tes histoires/);
   assert.equal(ctx.backend._raw.notes.size, 1);
-  await ctx.click(ctx.$('[data-note="n1"] [data-action="delete-note"]'));
+  await ctx.click(ctx.$('[data-note="n1"]'));
+  await ctx.click(ctx.$('[data-role="note-form"] [data-action="delete-note"]'));
   assert.equal(ctx.backend._raw.notes.size, 1);
   ctx.close();
 });

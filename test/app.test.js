@@ -235,7 +235,7 @@ test('propriétaire : nombre invalide et chapitres incohérents refusés', async
 test('propriétaire : modifie un livre, avancement mis à jour', async () => {
   const ctx = await mount();
   await ctx.loginAs(OWNER);
-  await ctx.click(ctx.$('[data-book="a"] [data-action="edit"]'));
+  await ctx.click(ctx.$('[data-book="a"]'));
   const f = ctx.$('[data-role="book-form"]');
   assert.equal(f.elements.title.value, 'Les Cendres du Nord');
   assert.equal(f.elements.status.value, 'ecriture');
@@ -251,7 +251,7 @@ test('propriétaire : modifie un livre, avancement mis à jour', async () => {
 test('propriétaire : passer un livre en public le rend visible aux visiteurs', async () => {
   const ctx = await mount();
   await ctx.loginAs(OWNER);
-  await ctx.click(ctx.$('[data-book="b"] [data-action="edit"]'));
+  await ctx.click(ctx.$('[data-book="b"]'));
   const f = ctx.$('[data-role="book-form"]');
   ctx.set(f, 'public', true);
   await ctx.submit(f);
@@ -264,8 +264,10 @@ test('propriétaire : passer un livre en public le rend visible aux visiteurs', 
 test('propriétaire : suppression confirmée', async () => {
   const ctx = await mount({ confirmAnswer: true });
   await ctx.loginAs(OWNER);
-  await ctx.click(ctx.$('[data-book="c"] [data-action="delete"]'));
+  await ctx.click(ctx.$('[data-book="c"]'));
+  await ctx.click(ctx.$('[data-role="book-form"] [data-action="delete"]'));
   await tick();
+  assert.equal(ctx.$('[data-role="book-form"]'), null, 'retour à la liste');
   assert.equal(ctx.$('[data-book="c"]'), null);
   assert.equal(ctx.backend._raw.books.has('c'), false);
   ctx.close();
@@ -274,8 +276,11 @@ test('propriétaire : suppression confirmée', async () => {
 test('propriétaire : suppression annulée → rien ne change', async () => {
   const ctx = await mount({ confirmAnswer: false });
   await ctx.loginAs(OWNER);
-  await ctx.click(ctx.$('[data-book="c"] [data-action="delete"]'));
+  await ctx.click(ctx.$('[data-book="c"]'));
+  await ctx.click(ctx.$('[data-role="book-form"] [data-action="delete"]'));
   await tick();
+  assert.ok(ctx.$('[data-role="book-form"]'), 'on reste dans le formulaire');
+  await ctx.click(ctx.$('[data-action="cancel"]'));
   assert.ok(ctx.$('[data-book="c"]'));
   assert.equal(ctx.backend._raw.books.has('c'), true);
   ctx.close();
@@ -349,6 +354,8 @@ test('aperçu visiteur : masque privés et commandes, puis retour', async () => 
   assert.deepEqual(titles(ctx), ['Les Cendres du Nord', 'Premier recueil']);
   assert.equal(ctx.$('[data-action="edit"]'), null);
   assert.equal(ctx.$('[data-action="add"]'), null);
+  await ctx.click(ctx.$('[data-book="a"]'));
+  assert.equal(ctx.$('[data-role="book-form"]'), null, 'en aperçu, toucher un livre n’ouvre rien');
   await ctx.click(ctx.$('[data-action="end-preview"]'));
   assert.equal(ctx.$$('.card').length, 3);
   assert.ok(ctx.$('[data-action="add"]'));
