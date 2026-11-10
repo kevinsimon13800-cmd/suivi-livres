@@ -1,6 +1,6 @@
 // Écran « Statistiques » (propriétaire uniquement) : chiffres clés + histogramme par période + tableau.
-import { PERIODS, buildSeries, allKeys, parisDate, firstDay } from './stats.js?v=5';
-import { formatDateFR } from './logic.js?v=5';
+import { PERIODS, buildSeries, allKeys, parisDate, firstDay } from './stats.js?v=6';
+import { formatDateFR } from './logic.js?v=6';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 
@@ -144,7 +144,8 @@ export function createStatsUI({ state, backend, win, doc, h, render, now = () =>
             table(series),
             h('p', { class: 'hint' },
               since ? `Comptage depuis le ${formatDateFR(since)}. ` : 'Aucune visite comptée pour l’instant. ',
-              'Visiteurs = appareils différents sur la période ; visites = ouvertures du site. Tes propres visites ne sont pas comptées.'),
+              'Visiteurs = appareils différents sur la période ; visites = ouvertures du site. Tes propres visites ne sont pas comptées : ni quand tu es connectée, ni sur un appareil déjà utilisé pour te connecter.'),
+            state.persoUrl ? h('p', { class: 'hint', 'data-role': 'perso-hint' }, 'Nouvel appareil, ou appli ajoutée à l’écran d’accueil de l’iPhone (elle garde sa propre mémoire) : ouvre une fois ', h('strong', { class: 'perso-url' }, state.persoUrl), ' pour ne plus compter tes visites là-bas.') : null,
           ]
         : null,
       h('div', { class: 'toolbar' },

@@ -3,13 +3,14 @@
 import {
   STATUSES, progress, validateBook, validateNote, formatNumber, statusLabel,
   countdown, todayISO, filterBooks, collectFacets, isValidCover,
-} from './logic.js?v=5';
-import { createReadingStore } from './reading.js?v=5';
-import { HERO_ART, SWORDS_DIVIDER, COVER_PLACEHOLDER, SMALL_ROSE } from './art.js?v=5';
-import { createReadingsUI } from './readings-ui.js?v=5';
-import { SOCIALS, normalizeSocial, safeSocialUrl, socialIconSvg, SOCIAL_WREATH } from './socials.js?v=5';
-import { createStatsUI } from './stats-ui.js?v=5';
-import { trackVisit, markAuthorDevice } from './stats.js?v=5';
+} from './logic.js?v=6';
+import { createReadingStore } from './reading.js?v=6';
+import { HERO_ART, SWORDS_DIVIDER, COVER_PLACEHOLDER, SMALL_ROSE } from './art.js?v=6';
+import { createReadingsUI } from './readings-ui.js?v=6';
+import { SOCIALS, normalizeSocial, safeSocialUrl, socialIconSvg, SOCIAL_WREATH } from './socials.js?v=6';
+import { createStatsUI } from './stats-ui.js?v=6';
+import { NAV_ICONS } from './nav-icons.js?v=6';
+import { trackVisit, markAuthorDevice } from './stats.js?v=6';
 
 export function start({
   backend, root, ownerUid, shareUrl, doc = document, win = window,
@@ -127,22 +128,64 @@ export function start({
     win.scrollTo?.(0, 0);
   };
 
-  function renderTabs() {
+  // ---------- Menu du bas (façon appli) ----------
+
+  function renderBottomNav() {
     const onReadings = isReadingsTab();
+    const onList = state.view === 'list';
+    const icon = (name) => { const s = h('span', { class: 'bn-ico' }); s.innerHTML = NAV_ICONS[name]; return s; }; // SVG constants only
+    const item = (tag, name, label, on, attrs, fn) => h(
+      tag,
+      { class: `bn-item${on ? ' on' : ''}${name === 'add' ? ' bn-add' : ''}`, 'aria-current': on ? 'page' : null, ...attrs, onclick: fn },
+      name === 'add' ? h('span', { class: 'bn-plus' }, icon(name)) : icon(name),
+      h('span', { class: 'bn-label' }, label),
+    );
+    const goBooks = (e) => { e.preventDefault(); state.moreOpen = false; state.view = 'list'; win.location.hash = ''; render(); };
+    const goReadings = (e) => { e.preventDefault(); state.moreOpen = false; state.view = 'list'; win.location.hash = '#/lectures'; render(); };
+    const books = item('a', 'books', 'Livres', onList && !onReadings, { href: '#', 'data-tab': 'books' }, goBooks);
+    const readings = item('a', 'readings', 'Lectures', onList && onReadings, { href: '#/lectures', 'data-tab': 'readings' }, goReadings);
+
+    let items;
+    let sheet = null;
+    if (canEdit()) {
+      const closeThen = (fn) => () => { state.moreOpen = false; fn(); };
+      items = [
+        books, readings,
+        item('button', 'add', 'Écrire', state.view === 'form', { type: 'button', 'data-action': 'add' }, () => { state.moreOpen = false; openForm(null); }),
+        item('button', 'notes', 'Notes', state.view === 'notes', { type: 'button', 'data-action': 'notes' }, () => { state.moreOpen = false; openNotes(); }),
+        item('button', 'more', 'Plus', state.moreOpen || ['profile', 'stats', 'share'].includes(state.view), { type: 'button', 'data-action': 'more', 'aria-expanded': state.moreOpen ? 'true' : 'false' },
+          () => { state.moreOpen = !state.moreOpen; render(); }),
+      ];
+      sheet = h(
+        'div',
+        { class: `bn-sheet${state.moreOpen ? ' open' : ''}`, role: 'dialog', 'aria-label': 'Plus d’options', 'aria-hidden': state.moreOpen ? 'false' : 'true' },
+        h('button', { class: 'bn-scrim', type: 'button', tabindex: -1, 'aria-label': 'Fermer', onclick: () => { state.moreOpen = false; render(); } }),
+        h(
+          'div',
+          { class: 'bn-panel' },
+          h('button', { class: 'btn', 'data-action': 'profile', onclick: closeThen(() => { state.profileDraft = null; state.profileErrors = {}; state.saveError = ''; go('profile'); }) }, 'Mon profil'),
+          h('button', { class: 'btn', 'data-action': 'stats', onclick: closeThen(() => { go('stats'); statsUI.open(); }) }, '📈 Statistiques'),
+          h('button', { class: 'btn', 'data-action': 'share', onclick: closeThen(onShare) }, 'Lien de partage'),
+          h('button', { class: 'btn', 'data-action': 'preview', onclick: closeThen(() => { state.preview = true; go('list'); }) }, 'Voir comme visiteur'),
+          h('button', { class: 'btn ghost', 'data-action': 'logout', onclick: closeThen(() => backend.logout()) }, 'Déconnexion'),
+        ),
+      );
+    } else if (isOwner()) {
+      items = [books, readings, item('button', 'eye', 'Mon espace', false, { type: 'button', 'data-action': 'end-preview-nav' }, () => { state.preview = false; render(); })];
+    } else {
+      items = [books, readings, item('a', 'lock', 'Auteur', false, { href: '#/admin', 'data-action': 'admin-nav' }, () => {})];
+    }
     return h(
       'nav',
-      { class: 'tabs', 'aria-label': 'Sections' },
-      h('a', { class: `tab${onReadings ? '' : ' on'}`, href: '#', 'data-tab': 'books', 'aria-current': onReadings ? null : 'page',
-        onclick: (e) => { e.preventDefault(); state.view = 'list'; win.location.hash = ''; render(); } }, '📚 Mes livres'),
-      h('a', { class: `tab${onReadings ? ' on' : ''}`, href: '#/lectures', 'data-tab': 'readings', 'aria-current': onReadings ? 'page' : null,
-        onclick: (e) => { e.preventDefault(); state.view = 'list'; win.location.hash = '#/lectures'; render(); } }, '📖 Mes lectures'),
+      { class: 'bnav', 'data-count': String(items.length), 'aria-label': 'Navigation' },
+      sheet,
+      h('div', { class: 'bn-bar' }, items),
     );
   }
 
   // ---------- En-tête ----------
 
   function renderHeader() {
-    const owner = canEdit();
     return h(
       'header',
       { class: 'hero' },
@@ -151,20 +194,6 @@ export function start({
       state.profile.bio ? h('p', { class: 'bio' }, state.profile.bio) : null,
       renderSocials(),
       art(SWORDS_DIVIDER, 'divider'),
-      renderTabs(),
-      owner
-        ? h(
-            'nav',
-            { class: 'toolbar', 'aria-label': 'Espace auteur' },
-            h('button', { class: 'btn primary', 'data-action': 'add', onclick: () => openForm(null) }, '+ Nouveau livre'),
-            h('button', { class: `btn${state.view === 'notes' ? ' active' : ''}`, 'data-action': 'notes', onclick: openNotes }, '✎ Notes-Idées'),
-            h('button', { class: 'btn', 'data-action': 'profile', onclick: () => { state.profileDraft = null; state.profileErrors = {}; state.saveError = ''; go('profile'); } }, 'Mon profil'),
-            h('button', { class: 'btn', 'data-action': 'stats', onclick: () => { go('stats'); statsUI.open(); } }, '📈 Statistiques'),
-            h('button', { class: 'btn', 'data-action': 'share', onclick: onShare }, 'Lien de partage'),
-            h('button', { class: 'btn', 'data-action': 'preview', onclick: () => ((state.preview = true), go('list')) }, 'Voir comme visiteur'),
-            h('button', { class: 'btn ghost', 'data-action': 'logout', onclick: () => backend.logout() }, 'Déconnexion'),
-          )
-        : null,
       isOwner() && state.preview
         ? h(
             'div',
@@ -271,9 +300,12 @@ export function start({
     const tags = Array.isArray(b.tags) ? b.tags : [];
     const chapters = Array.isArray(b.chapterTitles) ? b.chapterTitles : [];
     const readFlag = !owner && reading.isBookRead(b.id);
+    const open = owner ? { role: 'button', tabindex: '0', 'aria-label': `Modifier « ${b.title} »`,
+      onclick: (e) => { if (!e.target.closest('.tag')) openForm(b); },
+      onkeydown: (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); openForm(b); } } } : null;
     return h(
       'article',
-      { class: `card${readFlag ? ' is-read' : ''}`, 'data-book': b.id },
+      { class: `card${readFlag ? ' is-read' : ''}${owner ? ' editable' : ''}`, 'data-book': b.id, ...(open ? { ...open, 'data-action': 'edit' } : {}) },
       renderCover(b),
       h(
         'div',
@@ -309,19 +341,9 @@ export function start({
               : '',
           b.chaptersTotal > 0 ? ` · ${b.chaptersDone}/${b.chaptersTotal} chapitres` : '',
         ),
-        owner
-          ? (chapters.length ? h('p', { class: 'date' }, `${chapters.length} titre${chapters.length > 1 ? 's' : ''} de chapitre visible${chapters.length > 1 ? 's' : ''} par les lecteurs`) : null)
-          : renderReader(b),
-        b.updatedAt ? h('p', { class: 'date' }, `Mis à jour le ${new Date(b.updatedAt).toLocaleDateString('fr-FR')}`) : null,
-        owner
-          ? h(
-              'div',
-              { class: 'card-actions' },
-              !b.public ? h('span', { class: 'pill private' }, 'Privé') : null,
-              h('button', { class: 'btn small', 'data-action': 'edit', onclick: () => openForm(b) }, 'Modifier'),
-              h('button', { class: 'btn small danger', 'data-action': 'delete', onclick: () => onDelete(b) }, 'Supprimer'),
-            )
-          : null,
+        owner ? null : renderReader(b),
+        !owner && b.updatedAt ? h('p', { class: 'date' }, `Mis à jour le ${new Date(b.updatedAt).toLocaleDateString('fr-FR')}`) : null,
+        owner && !b.public ? h('div', { class: 'card-actions' }, h('span', { class: 'pill private' }, '🔒 Privé')) : null,
       ),
     );
   }
@@ -386,7 +408,7 @@ export function start({
     if (state.loading) return h('p', { class: 'state' }, 'Chargement…');
     if (state.loadError) return h('p', { class: 'state error', role: 'alert' }, state.loadError);
     if (!visible.length) {
-      return h('p', { class: 'state' }, canEdit() ? 'Aucun livre pour l’instant. Ajoute le premier avec « + Nouveau livre ».' : 'Aucun livre à afficher pour l’instant.');
+      return h('p', { class: 'state' }, canEdit() ? 'Aucun livre pour l’instant. Ajoute le premier avec le bouton « + » du menu du bas.' : 'Aucun livre à afficher pour l’instant.');
     }
     return h(
       'div',
@@ -547,6 +569,7 @@ export function start({
         { class: 'toolbar' },
         h('button', { class: 'btn primary', type: 'submit', 'data-action': 'save', disabled: state.coverBusy }, 'Enregistrer'),
         h('button', { class: 'btn', type: 'button', 'data-action': 'cancel', onclick: () => go('list') }, 'Annuler'),
+        state.editing ? h('button', { class: 'btn ghost danger', type: 'button', 'data-action': 'delete', onclick: () => onDelete(state.editing) }, 'Supprimer ce livre') : null,
       ),
     );
   }
@@ -596,6 +619,8 @@ export function start({
     if (!win.confirm(`Supprimer « ${b.title} » ? Cette action est définitive.`)) return;
     try {
       await backend.deleteBook(b.id);
+      state.view = 'list';
+      state.editing = null;
       await refresh();
       showToast('Livre supprimé.');
     } catch (e) {
@@ -633,8 +658,11 @@ export function start({
     state.noteDraft = { title: n.title || '', body: n.body || '', bookId: n.bookId || '' };
     state.noteErrors = {};
     render();
-    root.querySelector('[data-role="note-form"] [name="title"]')?.focus();
+    win.scrollTo?.(0, 0);
+    root.querySelector('[data-role="note-form"] [name="body"]')?.focus();
   }
+
+  const emptyNote = () => ({ title: '', body: '', bookId: '' });
 
   async function onSubmitNote(ev) {
     ev.preventDefault();
@@ -650,7 +678,7 @@ export function start({
     try {
       await backend.saveNote({ ...res.value, id: state.noteEditing ? state.noteEditing.id : undefined });
       state.noteEditing = null;
-      state.noteDraft = { title: '', body: '', bookId: '' };
+      state.noteDraft = emptyNote();
       state.noteErrors = {};
       await loadNotes();
       render();
@@ -666,10 +694,9 @@ export function start({
     if (!win.confirm(`Supprimer la note « ${n.title || 'sans titre'} » ? Cette action est définitive.`)) return;
     try {
       await backend.deleteNote(n.id);
-      if (state.noteEditing && state.noteEditing.id === n.id) {
-        state.noteEditing = null;
-        state.noteDraft = { title: '', body: '', bookId: '' };
-      }
+      state.noteEditing = null;
+      state.noteDraft = emptyNote();
+      state.noteErrors = {};
       await loadNotes();
       render();
       showToast('Note supprimée.');
@@ -683,23 +710,32 @@ export function start({
     const d = state.noteDraft;
     const e = state.noteErrors;
     const bookTitle = (id) => (state.books.find((b) => b.id === id) || {}).title;
+    const onBook = !!d.bookId;
+    const keepDraft = (form) => { state.noteDraft = { title: form.title.value, body: form.body.value, bookId: form.bookId.value }; };
     return h(
       'div',
       { class: 'notes-view' },
       h(
         'form',
         { class: 'panel note-form', 'data-role': 'note-form', novalidate: true, onsubmit: onSubmitNote },
-        h('h2', {}, art(SMALL_ROSE, 'inline-art'), state.noteEditing ? ' Modifier la note' : ' Notes-Idées'),
-        h('p', { class: 'hint' }, 'Tes projets, idées de scènes, personnages… Visibles par toi seule.'),
-        field('Titre', 'title', h('input', { class: 'input', name: 'title', value: d.title, maxlength: '120', autocomplete: 'off', placeholder: 'Ex. Idée : la prêtresse d’Athéna' }), e.title),
-        field('Note', 'body', h('textarea', { class: 'input', name: 'body', rows: '6' }, d.body), e.body),
+        h('h2', {}, art(SMALL_ROSE, 'inline-art'), state.noteEditing ? ' Modifier la note' : ' Nouvelle note'),
         field(
-          'Lier à un livre (facultatif)',
+          'Pour quelle histoire ?',
           'bookId',
-          h('select', { class: 'input', name: 'bookId' },
-            h('option', { value: '' }, 'Aucun'),
-            state.books.map((b) => h('option', { value: b.id, selected: b.id === d.bookId }, b.title))),
+          h('select', {
+            class: 'input', name: 'bookId',
+            onchange: (ev) => { keepDraft(ev.target.form.elements); render(); },
+          },
+          h('option', { value: '' }, 'Aucune : je lui donne un nom'),
+          state.books.map((b) => h('option', { value: b.id, selected: b.id === d.bookId }, b.title))),
         ),
+        field(
+          onBook ? 'Titre (facultatif)' : 'Nom de la note ou du projet',
+          'title',
+          h('input', { class: 'input', name: 'title', value: d.title, maxlength: '120', autocomplete: 'off', placeholder: onBook ? 'Ex. Scène du duel' : 'Ex. Futur projet : la reine des abeilles' }),
+          e.title,
+        ),
+        field('Note', 'body', h('textarea', { class: 'input', name: 'body', rows: '5' }, d.body), e.body),
         e.form ? h('p', { class: 'state error', role: 'alert' }, e.form) : null,
         h(
           'div',
@@ -708,10 +744,12 @@ export function start({
           state.noteEditing
             ? h('button', {
                 class: 'btn', type: 'button', 'data-action': 'cancel-note',
-                onclick: () => { state.noteEditing = null; state.noteDraft = { title: '', body: '', bookId: '' }; state.noteErrors = {}; render(); },
+                onclick: () => { state.noteEditing = null; state.noteDraft = emptyNote(); state.noteErrors = {}; render(); },
               }, 'Annuler')
             : null,
-          h('button', { class: 'btn ghost', type: 'button', 'data-action': 'back-books', onclick: () => go('list') }, '← Mes livres'),
+          state.noteEditing
+            ? h('button', { class: 'btn ghost danger', type: 'button', 'data-action': 'delete-note', onclick: () => onDeleteNote(state.noteEditing) }, 'Supprimer')
+            : null,
         ),
       ),
       state.notesLoading
@@ -719,23 +757,22 @@ export function start({
         : state.notesError
           ? h('p', { class: 'state error', role: 'alert' }, state.notesError)
           : !state.notes.length
-            ? h('p', { class: 'state' }, 'Aucune note pour l’instant.')
+            ? h('p', { class: 'state' }, 'Aucune note pour l’instant. Écris la première ci-dessus.')
             : h(
                 'section',
                 { class: 'notes', 'data-role': 'notes' },
+                h('p', { class: 'hint notes-hint' }, 'Touche une note pour la modifier.'),
                 state.notes.map((n) => h(
                   'article',
-                  { class: 'note', 'data-note': n.id },
-                  n.title ? h('h3', {}, n.title) : null,
+                  {
+                    class: `note editable${state.noteEditing && state.noteEditing.id === n.id ? ' current' : ''}`, 'data-note': n.id, role: 'button', tabindex: '0',
+                    'aria-label': `Modifier la note « ${n.title || bookTitle(n.bookId) || 'sans titre'} »`, 'data-action': 'edit-note',
+                    onclick: () => editNote(n),
+                    onkeydown: (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); editNote(n); } },
+                  },
                   n.bookId && bookTitle(n.bookId) ? h('p', { class: 'genre' }, `📖 ${bookTitle(n.bookId)}`) : null,
+                  n.title ? h('h3', {}, n.title) : null,
                   n.body ? h('p', { class: 'note-body' }, n.body) : null,
-                  n.updatedAt ? h('p', { class: 'date' }, `Modifiée le ${new Date(n.updatedAt).toLocaleDateString('fr-FR')}`) : null,
-                  h(
-                    'div',
-                    { class: 'card-actions' },
-                    h('button', { class: 'btn small', 'data-action': 'edit-note', onclick: () => editNote(n) }, 'Modifier'),
-                    h('button', { class: 'btn small danger', 'data-action': 'delete-note', onclick: () => onDeleteNote(n) }, 'Supprimer'),
-                  ),
                 )),
               ),
     );
@@ -899,6 +936,7 @@ export function start({
           isOwner() ? null : h('a', { href: '#/admin', 'data-action': 'admin-link' }, 'Espace auteur'),
         ),
       ),
+      renderBottomNav(),
     );
   }
 
@@ -917,13 +955,26 @@ export function start({
   // Import automatique : le site est ouvert avec ?import=<lien Wattpad> (raccourci iPhone ou favori)
   state.pendingImport = readingsUI.takeImportParam();
 
+  // Lien « ?perso » : marque cet appareil comme le tien (tes visites ne sont jamais comptées), même sans te connecter
+  state.persoUrl = `${shareUrl}?perso`;
+  try {
+    const q = new URLSearchParams(win.location.search);
+    if (q.has('perso')) {
+      markAuthorDevice(localStore);
+      q.delete('perso');
+      const rest = q.toString();
+      win.history?.replaceState?.(null, '', `${win.location.pathname}${rest ? `?${rest}` : ''}${win.location.hash}`);
+      state.deviceMarked = true;
+    }
+  } catch (e) { /* ignoré */ }
+
   backend.onAuthChange(async (user) => {
     state.user = user;
     if (isOwner()) markAuthorDevice(localStore);
     if (!visitTracked) {
       visitTracked = true;
       // pas de comptage sur la page de connexion ni pour un import Wattpad : c'est l'auteur
-      if (!isOwner() && trackVisits && win.location.hash !== '#/admin' && !state.pendingImport) {
+      if (!isOwner() && trackVisits && win.location.hash !== '#/admin' && !state.pendingImport && !state.deviceMarked) {
         trackVisit({ backend, local: localStore, session: sessionStore, now: nowFn(), isBot: !!(win.navigator && win.navigator.webdriver) });
       }
     }

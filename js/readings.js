@@ -1,5 +1,5 @@
 // « Mes lectures » : logique pure (validation, changements d'état, couverture distante).
-import { isValidDate, isValidCover, todayISO } from './logic.js?v=5';
+import { isValidDate, isValidCover, todayISO } from './logic.js?v=6';
 
 export const READING_STATES = [
   { id: 'en-cours', label: 'En cours', icon: '📖' },

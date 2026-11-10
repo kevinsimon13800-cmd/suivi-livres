@@ -209,7 +209,8 @@ export function validateNote(input) {
   const title = String(input.title ?? '').trim();
   const body = String(input.body ?? '').trim();
   const bookId = String(input.bookId ?? '').trim();
-  if (!title && !body) errors.title = 'Écris au moins un titre ou un texte.';
+  if (!bookId && !title) errors.title = 'Donne un nom à ta note ou choisis une de tes histoires.';
+  else if (!title && !body) errors.title = 'Écris au moins un titre ou un texte.';
   if (title.length > 120) errors.title = '120 caractères maximum.';
   if (body.length > 10000) errors.body = '10 000 caractères maximum.';
   const ok = Object.keys(errors).length === 0;
