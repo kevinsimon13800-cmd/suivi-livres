@@ -74,3 +74,12 @@ La sécurité est appliquée **côté serveur** par `firestore.rules` : même en
 npm install
 npm test        # 41 tests : calculs, validation, interface visiteur/auteur, XSS, règles simulées
 ```
+
+## Nouveautés v7
+
+- **Personnages** (menu Plus, auteure) : fiches et carte des liens (glisser pour déplacer).
+- **Notes** : écrites ou dictées (bouton « Dicter » si le navigateur le permet).
+- **Livres lus** (onglet Lectures) : compteur par semaine, mois, trimestre, semestre, année, à partir des lectures « Terminée » avec une date de fin.
+- **Prochain chapitre** : compte à rebours sur l'accueil (réglage : Plus > Prochain chapitre).
+- **Sondage** : vote des visiteurs sur l'accueil, une voix par appareil (réglage : Plus > Sondage).
+- Côté Firebase : voir `firestore.rules` (collections `characters`, `relations`, `site/chapter`, `site/poll`, `pollCounts`).

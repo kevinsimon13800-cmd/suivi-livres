@@ -43,6 +43,34 @@ service cloud.firestore {
         && request.resource.data.get('visitors', 0) - resource.data.get('visitors', 0) in [0, 1];
     }
 
+    // Personnages et liens (atelier) : strictement privés, comme les notes.
+    match /characters/{charId} {
+      allow read, write: if isOwner();
+    }
+    match /relations/{relId} {
+      allow read, write: if isOwner();
+    }
+
+    // Prochain chapitre (site/chapter) et sondage (site/poll) : lecture pour tous, écriture propriétaire.
+    match /site/{docId} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+
+    // Votes du sondage : un document par choix, avec un seul champ `votes` (entier).
+    // Tout le monde peut seulement créer un compteur à 1, ou ajouter +1 / retirer 1 (sans passer sous 0).
+    match /pollCounts/{countId} {
+      allow read: if true;
+      allow write: if isOwner();
+      allow create: if request.resource.data.keys().hasOnly(['votes'])
+        && request.resource.data.votes == 1;
+      allow update: if request.resource.data.keys().hasOnly(['votes'])
+        && request.resource.data.votes is int
+        && request.resource.data.votes >= 0
+        && (request.resource.data.votes - resource.data.votes == 1
+            || request.resource.data.votes - resource.data.votes == -1);
+    }
+
     // Tout le reste est fermé.
     match /{document=**} {
       allow read, write: if false;
